@@ -125,6 +125,47 @@ def load_knowledge():
         logger.error(f"Error loading knowledge: {e}")
         return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
 
+async def force_clear_all_conflicts():
+    """
+    Aggressively clear all possible conflicts and wait for resolution.
+    """
+    try:
+        base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+        
+        logger.info("🔄 Force clearing all conflicts...")
+        
+        # 1. Delete webhook multiple times
+        for i in range(3):
+            response = requests.get(f"{base_url}/deleteWebhook")
+            logger.info(f"Webhook deletion attempt {i+1}: {response.status_code}")
+            await asyncio.sleep(1)
+        
+        # 2. Clear all pending updates
+        response = requests.get(f"{base_url}/getUpdates?offset=-1")
+        if response.status_code == 200:
+            updates = response.json()
+            logger.info(f"Cleared {len(updates['result'])} pending updates")
+        
+        # 3. Wait and test multiple times
+        for attempt in range(5):
+            await asyncio.sleep(5)  # Wait 5 seconds between attempts
+            
+            response = requests.get(f"{base_url}/getUpdates?limit=1")
+            if response.status_code == 200:
+                logger.info(f"✅ Conflict resolved after {attempt + 1} attempts")
+                return True
+            elif response.status_code == 409:
+                logger.warning(f"⚠️  Conflict still exists (attempt {attempt + 1}/5)")
+            else:
+                logger.warning(f"⚠️  Unexpected response: {response.status_code}")
+        
+        logger.error("❌ Failed to resolve conflicts after all attempts")
+        return False
+        
+    except Exception as e:
+        logger.error(f"❌ Error during conflict resolution: {e}")
+        return False
+
 async def check_bot_conflicts():
     """
     Check if there are any conflicts with the bot before starting.
@@ -227,16 +268,16 @@ async def run_bot_with_retry():
     """
     Run the bot with retry mechanism for handling conflicts during polling.
     """
-    max_retries = 10  # Increased retries
-    retry_delay = 60  # Start with 60 seconds
+    max_retries = 15  # Increased retries
+    retry_delay = 30  # Start with 30 seconds
     
     for attempt in range(max_retries):
         try:
             logger.info(f"Attempting to start bot (attempt {attempt + 1}/{max_retries})")
             
-            # Check for conflicts before starting
-            if not await check_bot_conflicts():
-                logger.warning("Conflicts detected, waiting before retry...")
+            # Force clear all conflicts before starting
+            if not await force_clear_all_conflicts():
+                logger.warning("Failed to clear conflicts, waiting before retry...")
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 300)  # Cap at 5 minutes
                 continue
