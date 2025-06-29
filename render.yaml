@@ -1,12 +1,13 @@
 services:
   - type: web
-    name: telegram-gpt-bot
+    name: safechain-telegram-bot
     env: python
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
       - key: OPENAI_API_KEY
-        sync: false 
+        sync: false
+    healthCheckPath: /
+    autoDeploy: true 

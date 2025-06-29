@@ -9,6 +9,7 @@ from telegram.error import Conflict, NetworkError, TimedOut
 from openai import OpenAI
 import logging
 import asyncio
+from flask import Flask, request, jsonify
 
 # Set up logging
 logging.basicConfig(
@@ -26,6 +27,9 @@ SCRAPE_INTERVAL = 6 * 60 * 60  # 6 hours in seconds
 
 # Initialize OpenAI client with new API format
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Flask app for webhook
+app = Flask(__name__)
 
 def scrape_website(url):
     """
@@ -172,15 +176,77 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     else:
         logger.error(f"Unexpected error: {context.error}")
 
-async def run_bot_simple():
+# Global variable to store the application
+telegram_app = None
+
+@app.route('/webhook', methods=['POST'])
+def webhook_handler():
     """
-    Run the bot with simple approach - just wait and try.
+    Handle incoming webhook requests from Telegram.
     """
-    logger.info("Starting SafeChain AI Telegram Bot (Simple Mode)...")
+    try:
+        if telegram_app is None:
+            return jsonify({'error': 'Bot not initialized'}), 500
+        
+        # Process the update
+        update = Update.de_json(request.get_json(), telegram_app.bot)
+        asyncio.create_task(telegram_app.process_update(update))
+        
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        logger.error(f"Error in webhook handler: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Health check endpoint for Render.
+    """
+    return jsonify({'status': 'healthy', 'bot': 'SafeChain AI Telegram Bot'})
+
+@app.route('/', methods=['GET'])
+def home():
+    """
+    Home endpoint.
+    """
+    return jsonify({
+        'message': 'SafeChain AI Telegram Bot',
+        'status': 'running',
+        'webhook': 'active'
+    })
+
+async def setup_webhook():
+    """
+    Set up webhook for the bot.
+    """
+    global telegram_app
     
-    # Wait 2 minutes before starting to let any other instances finish
-    logger.info("Waiting 2 minutes before starting to avoid conflicts...")
-    await asyncio.sleep(120)
+    try:
+        # Get the webhook URL from environment
+        webhook_url = os.getenv('WEBHOOK_URL', 'https://your-app-name.onrender.com/webhook')
+        
+        # Build the application
+        application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+        
+        # Add handlers
+        application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+        application.add_error_handler(error_handler)
+        
+        # Set webhook
+        await application.bot.set_webhook(url=f"{webhook_url}/webhook")
+        logger.info(f"Webhook set to: {webhook_url}/webhook")
+        
+        telegram_app = application
+        return True
+    except Exception as e:
+        logger.error(f"Error setting up webhook: {e}")
+        return False
+
+async def initialize_bot():
+    """
+    Initialize the bot with webhook.
+    """
+    logger.info("Initializing SafeChain AI Telegram Bot with webhook...")
     
     # Initialize knowledge base
     logger.info("Initializing knowledge base...")
@@ -190,56 +256,28 @@ async def run_bot_simple():
     logger.info("Starting background scraping scheduler...")
     schedule_scraping()
     
-    # Build application
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    # Set up webhook
+    success = await setup_webhook()
     
-    # Add error handler
-    app.add_error_handler(error_handler)
-    
-    # Add message handler
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
-    
-    logger.info("Bot is ready! Starting polling...")
-    
-    # Start the bot with simple polling
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(
-        drop_pending_updates=True,
-        allowed_updates=Update.ALL_TYPES,
-        timeout=60,
-        read_timeout=60,
-        write_timeout=60,
-        connect_timeout=60,
-        pool_timeout=60
-    )
-    
-    logger.info("Bot started successfully!")
-    
-    # Keep the bot running
-    try:
-        await asyncio.Event().wait()  # Wait indefinitely
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    finally:
-        await app.stop()
-        await app.shutdown()
+    if success:
+        logger.info("Bot initialized successfully with webhook!")
+    else:
+        logger.error("Failed to initialize bot")
 
 def main():
     """
-    Start the Telegram bot.
+    Start the Flask app and initialize the bot.
     """
-    logger.info("Starting SafeChain AI Telegram Bot...")
+    logger.info("Starting SafeChain AI Telegram Bot (Webhook Mode)...")
     logger.info(f"Website URL: {WEBSITE_URL}")
     logger.info(f"Knowledge file: {KNOWLEDGE_FILE}")
     
-    try:
-        asyncio.run(run_bot_simple())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        raise
+    # Initialize the bot
+    asyncio.run(initialize_bot())
+    
+    # Start Flask app
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 
 if __name__ == '__main__':
     main() 

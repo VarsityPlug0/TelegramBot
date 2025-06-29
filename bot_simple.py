@@ -165,6 +165,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     
     if isinstance(context.error, Conflict):
         logger.error("Bot conflict detected - another instance may be running")
+        # Don't restart, just log the error
     elif isinstance(context.error, NetworkError):
         logger.error("Network error occurred")
     elif isinstance(context.error, TimedOut):
@@ -174,56 +175,57 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def run_bot_simple():
     """
-    Run the bot with simple approach - just wait and try.
+    Run the bot with simple conflict handling.
     """
-    logger.info("Starting SafeChain AI Telegram Bot (Simple Mode)...")
-    
-    # Wait 2 minutes before starting to let any other instances finish
-    logger.info("Waiting 2 minutes before starting to avoid conflicts...")
-    await asyncio.sleep(120)
-    
-    # Initialize knowledge base
-    logger.info("Initializing knowledge base...")
-    load_knowledge()
-    
-    # Start background scraping
-    logger.info("Starting background scraping scheduler...")
-    schedule_scraping()
-    
-    # Build application
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    
-    # Add error handler
-    app.add_error_handler(error_handler)
-    
-    # Add message handler
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
-    
-    logger.info("Bot is ready! Starting polling...")
-    
-    # Start the bot with simple polling
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(
-        drop_pending_updates=True,
-        allowed_updates=Update.ALL_TYPES,
-        timeout=60,
-        read_timeout=60,
-        write_timeout=60,
-        connect_timeout=60,
-        pool_timeout=60
-    )
-    
-    logger.info("Bot started successfully!")
-    
-    # Keep the bot running
     try:
-        await asyncio.Event().wait()  # Wait indefinitely
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    finally:
-        await app.stop()
-        await app.shutdown()
+        logger.info("Starting SafeChain AI Telegram Bot (Simple Mode)...")
+        
+        # Initialize knowledge base
+        logger.info("Initializing knowledge base...")
+        load_knowledge()
+        
+        # Start background scraping
+        logger.info("Starting background scraping scheduler...")
+        schedule_scraping()
+        
+        # Build application
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+        
+        # Add error handler
+        app.add_error_handler(error_handler)
+        
+        # Add message handler
+        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+        
+        logger.info("Bot is ready! Starting polling...")
+        
+        # Start the bot with simple polling
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling(
+            drop_pending_updates=True,
+            allowed_updates=Update.ALL_TYPES,
+            timeout=60,  # Longer timeout
+            read_timeout=60,
+            write_timeout=60,
+            connect_timeout=60,
+            pool_timeout=60
+        )
+        
+        logger.info("Bot started successfully!")
+        
+        # Keep the bot running
+        try:
+            await asyncio.Event().wait()  # Wait indefinitely
+        except KeyboardInterrupt:
+            logger.info("Bot stopped by user")
+        finally:
+            await app.stop()
+            await app.shutdown()
+            
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        raise
 
 def main():
     """
