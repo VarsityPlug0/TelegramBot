@@ -8,6 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 from telegram.error import Conflict, NetworkError, TimedOut
 import openai
 import logging
+import asyncio
 
 # Set up logging
 logging.basicConfig(
@@ -29,16 +30,33 @@ def scrape_website(url):
     """
     Scrape the website and extract only visible, useful text (ignore nav, ads, footers).
     """
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    # Remove unwanted elements
-    for tag in soup(['nav', 'footer', 'header', 'aside', 'script', 'style', '[document]', 'noscript', 'form', 'input', 'button', 'svg']):
-        for match in soup.find_all(tag):
-            match.decompose()
-    # Extract visible text
-    texts = [t.strip() for t in soup.stripped_strings if t.parent.name not in ['nav', 'footer', 'header', 'aside', 'script', 'style', 'form', 'input', 'button', 'svg']]
-    visible_text = '\n'.join(texts)
-    return visible_text
+    try:
+        response = requests.get(url, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Remove unwanted elements
+        for tag in soup(['nav', 'footer', 'header', 'aside', 'script', 'style', '[document]', 'noscript', 'form', 'input', 'button', 'svg']):
+            for match in soup.find_all(tag):
+                match.decompose()
+        
+        # Extract visible text more safely
+        texts = []
+        for text in soup.stripped_strings:
+            if text and text.strip():
+                # Check if the text's parent element is not in unwanted tags
+                try:
+                    parent = text.parent
+                    if parent and hasattr(parent, 'name') and parent.name not in ['nav', 'footer', 'header', 'aside', 'script', 'style', 'form', 'input', 'button', 'svg']:
+                        texts.append(text.strip())
+                except AttributeError:
+                    # If we can't get parent info, include the text anyway
+                    texts.append(text.strip())
+        
+        visible_text = '\n'.join(texts)
+        return visible_text
+    except Exception as e:
+        logger.error(f"Error scraping website: {e}")
+        return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
 
 def update_knowledge():
     """
@@ -167,23 +185,40 @@ def main():
     logger.info("Starting background scraping scheduler...")
     schedule_scraping()
     
-    # Start the bot
+    # Start the bot with retry mechanism
     logger.info("Starting Telegram bot...")
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     
-    # Add error handler
-    app.add_error_handler(error_handler)
+    max_retries = 5
+    retry_delay = 30  # Start with 30 seconds
     
-    # Add message handler
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
-    
-    logger.info("Bot is ready! Listening for messages...")
-    
-    try:
-        app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
-    except Exception as e:
-        logger.error(f"Error starting bot: {e}")
-        raise
+    for attempt in range(max_retries):
+        try:
+            app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+            
+            # Add error handler
+            app.add_error_handler(error_handler)
+            
+            # Add message handler
+            app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+            
+            logger.info("Bot is ready! Listening for messages...")
+            
+            # Try to start the bot
+            app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+            break  # If successful, break out of retry loop
+            
+        except Conflict as e:
+            logger.error(f"Bot conflict detected (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Waiting {retry_delay} seconds before retry...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error("Max retries reached. Bot failed to start due to conflicts.")
+                raise
+        except Exception as e:
+            logger.error(f"Error starting bot: {e}")
+            raise
 
 if __name__ == '__main__':
     main() 
