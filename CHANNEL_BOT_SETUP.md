@@ -7,6 +7,7 @@ This enhanced bot can:
 2. **💬 Answer questions** - Uses AI to answer questions about SafeChain AI
 3. **🔄 Stay always online** - Enhanced polling with keep-alive mechanism
 4. **🛡️ Admin-only posting** - Only you can post images to the channel
+5. **🔗 Automatic action links** - All posts include website links for user engagement
 
 ---
 
@@ -71,19 +72,49 @@ ADMIN_USER_ID = 123456789
 
 1. **Send a photo** to your bot
 2. **Add a caption** (optional) - this will be the post caption
-3. **Bot will post** the image to your channel
+3. **Bot will post** the image to your channel with action links
 4. **You'll get confirmation** message
 
 ### For Asking Questions:
 
 1. **Type any question** to the bot
 2. **Bot will answer** using SafeChain AI knowledge
-3. **Responses are AI-generated** based on your website
+3. **Responses include action links** automatically
 
 ### Bot Commands:
 
 - `/start` - Welcome message and instructions
 - `/status` - Check bot status (admin only)
+- `/links` - Post action links to channel (admin only)
+
+---
+
+## 🔗 Action Links Feature
+
+### Automatic Action Links:
+Every post and response automatically includes:
+- 🌐 **Website link** - Main website
+- 📚 **Learn more** - About page
+- 📞 **Contact us** - Contact page
+- 🎯 **Try demo** - Demo page
+
+### Example Action Links Message:
+```
+🚀 Ready to get started?
+
+🌐 Visit our website: https://safechain-7o0q.onrender.com/
+📚 Learn more: https://safechain-7o0q.onrender.com/about
+📞 Contact us: https://safechain-7o0q.onrender.com/contact
+🎯 Try demo: https://safechain-7o0q.onrender.com/demo
+
+#SafeChainAI #AIInvestment #Innovation
+```
+
+### When Action Links Are Added:
+- ✅ **Photo posts** - Automatically added to captions
+- ✅ **Document posts** - Automatically added to captions
+- ✅ **AI responses** - Added to every answer
+- ✅ **Manual posts** - Use `/links` command
 
 ---
 
@@ -94,8 +125,18 @@ ADMIN_USER_ID = 123456789
 # When you send a photo to the bot:
 1. Bot checks if you're the admin
 2. Gets the highest quality version of your photo
-3. Posts it to your channel with your caption
-4. Sends you a confirmation message
+3. Adds your caption + action links
+4. Posts it to your channel with formatted links
+5. Sends you a confirmation message
+```
+
+### Action Links System:
+```python
+# Automatic action links include:
+- Website: https://safechain-7o0q.onrender.com/
+- Learn more: https://safechain-7o0q.onrender.com/about
+- Contact: https://safechain-7o0q.onrender.com/contact
+- Demo: https://safechain-7o0q.onrender.com/demo
 ```
 
 ### Always Online System:
@@ -122,19 +163,31 @@ ADMIN_USER_ID = 123456789
 ### Posting an Image:
 ```
 You: [Send photo of SafeChain AI logo]
-Bot: ✅ Photo posted to channel successfully!
+Bot: ✅ Photo posted to channel with action links!
+Channel Post: [Your photo] + [Action links automatically added]
 ```
 
 ### Adding Caption:
 ```
 You: [Send photo] + "Check out our new AI features!"
-Bot: ✅ Photo posted to channel successfully!
+Bot: ✅ Photo posted to channel with action links!
+Channel Post: "Check out our new AI features!" + [Action links]
 ```
 
 ### Asking Questions:
 ```
 You: What services does SafeChain AI offer?
 Bot: SafeChain AI offers AI-powered investment solutions...
+🚀 Ready to get started?
+🌐 Visit our website: https://safechain-7o0q.onrender.com/
+[More action links...]
+```
+
+### Posting Action Links Only:
+```
+You: /links
+Bot: ✅ Action links posted to channel!
+Channel Post: [Action links message]
 ```
 
 ---
@@ -155,6 +208,11 @@ Bot: SafeChain AI offers AI-powered investment solutions...
 - ✅ Make sure bot is admin in your channel
 - ✅ Give bot "Post Messages" permission
 - ✅ Check if channel ID format is correct
+
+### Action Links Not Working:
+- ✅ Check if website URLs are accessible
+- ✅ Verify Markdown formatting is enabled
+- ✅ Check channel permissions for formatting
 
 ---
 
@@ -182,7 +240,7 @@ Bot: SafeChain AI offers AI-powered investment solutions...
 
 ### Good Signs:
 - ✅ `"Bot started successfully!"`
-- ✅ `"Photo posted to channel successfully!"`
+- ✅ `"Photo posted to channel with action links!"`
 - ✅ `"Bot heartbeat - Still alive and running"`
 
 ### Warning Signs:
@@ -199,8 +257,9 @@ Bot: SafeChain AI offers AI-powered investment solutions...
 
 Once configured, your bot will:
 - **Stay online 24/7**
-- **Post your images to the channel**
-- **Answer questions about SafeChain AI**
+- **Post your images to the channel with action links**
+- **Answer questions about SafeChain AI with action links**
 - **Provide admin-only security**
+- **Drive traffic to your website automatically**
 
-Your channel will have a professional, automated posting system! 🚀 
+Your channel will have a professional, automated posting system with built-in call-to-action links! 🚀 

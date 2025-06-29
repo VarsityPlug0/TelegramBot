@@ -26,6 +26,26 @@ WEBSITE_URL = 'https://safechain-7o0q.onrender.com/'
 KNOWLEDGE_FILE = 'knowledge.txt'
 SCRAPE_INTERVAL = 6 * 60 * 60  # 6 hours
 
+# Action links and call-to-action messages
+ACTION_LINKS = {
+    'website': 'https://safechain-7o0q.onrender.com/',
+    'get_started': 'https://safechain-7o0q.onrender.com/get-started',
+    'learn_more': 'https://safechain-7o0q.onrender.com/about',
+    'contact': 'https://safechain-7o0q.onrender.com/contact',
+    'demo': 'https://safechain-7o0q.onrender.com/demo'
+}
+
+DEFAULT_ACTION_MESSAGE = """
+🚀 **Ready to get started?**
+
+🌐 **Visit our website:** {website}
+📚 **Learn more:** {learn_more}
+📞 **Contact us:** {contact}
+🎯 **Try demo:** {demo}
+
+#SafeChainAI #AIInvestment #Innovation
+"""
+
 # Initialize OpenAI client
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -124,7 +144,7 @@ def load_knowledge():
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle incoming photos and post them to the channel.
+    Handle incoming photos and post them to the channel with action links.
     """
     try:
         # Check if message is from admin
@@ -135,19 +155,28 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Get the photo
         photo = update.message.photo[-1]  # Get the highest quality photo
-        caption = update.message.caption or "Posted by SafeChain AI Bot"
+        user_caption = update.message.caption or ""
+        
+        # Create enhanced caption with action links
+        if user_caption:
+            # If user provided caption, add action links below
+            enhanced_caption = f"{user_caption}\n\n{DEFAULT_ACTION_MESSAGE.format(**ACTION_LINKS)}"
+        else:
+            # If no caption, use default with action links
+            enhanced_caption = f"🚀 **SafeChain AI - AI-Powered Investment Platform**\n\n{DEFAULT_ACTION_MESSAGE.format(**ACTION_LINKS)}"
         
         logger.info(f"Received photo from admin, posting to channel {CHANNEL_ID}")
         
-        # Post to channel
+        # Post to channel with enhanced caption
         await context.bot.send_photo(
             chat_id=CHANNEL_ID,
             photo=photo.file_id,
-            caption=caption
+            caption=enhanced_caption,
+            parse_mode='Markdown'
         )
         
         # Confirm to admin
-        await update.message.reply_text("✅ Photo posted to channel successfully!")
+        await update.message.reply_text("✅ Photo posted to channel with action links!")
         
     except Exception as e:
         logger.error(f"Error posting photo to channel: {e}")
@@ -155,7 +184,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle incoming documents (like images sent as files).
+    Handle incoming documents (like images sent as files) with action links.
     """
     try:
         # Check if message is from admin
@@ -165,19 +194,26 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         document = update.message.document
-        caption = update.message.caption or "Posted by SafeChain AI Bot"
+        user_caption = update.message.caption or ""
+        
+        # Create enhanced caption with action links
+        if user_caption:
+            enhanced_caption = f"{user_caption}\n\n{DEFAULT_ACTION_MESSAGE.format(**ACTION_LINKS)}"
+        else:
+            enhanced_caption = f"📄 **SafeChain AI Document**\n\n{DEFAULT_ACTION_MESSAGE.format(**ACTION_LINKS)}"
         
         logger.info(f"Received document from admin, posting to channel {CHANNEL_ID}")
         
-        # Post to channel
+        # Post to channel with enhanced caption
         await context.bot.send_document(
             chat_id=CHANNEL_ID,
             document=document.file_id,
-            caption=caption
+            caption=enhanced_caption,
+            parse_mode='Markdown'
         )
         
         # Confirm to admin
-        await update.message.reply_text("✅ Document posted to channel successfully!")
+        await update.message.reply_text("✅ Document posted to channel with action links!")
         
     except Exception as e:
         logger.error(f"Error posting document to channel: {e}")
@@ -185,13 +221,15 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle incoming text messages and reply using OpenAI's ChatCompletion API.
+    Handle incoming text messages and reply using OpenAI's ChatCompletion API with action links.
     """
     try:
         user_message = update.message.text
         knowledge = load_knowledge()
         system_prompt = f"""
-You are a helpful assistant. Answer the user's question using the knowledge provided below. If the answer is not found in the knowledge, reply: \"I'm not sure about that — please visit our website for more details.\"
+You are a helpful assistant for SafeChain AI. Answer the user's question using the knowledge provided below. 
+Always end your response with a call-to-action encouraging them to visit the website or take action.
+If the answer is not found in the knowledge, reply: "I'm not sure about that — please visit our website for more details."
 
 --- BEGIN KNOWLEDGE BASE ---\n{knowledge}\n--- END KNOWLEDGE BASE ---
 """
@@ -205,15 +243,22 @@ You are a helpful assistant. Answer the user's question using the knowledge prov
                 max_tokens=512,
                 temperature=0.2
             )
-            reply = response.choices[0].message.content.strip()
+            ai_reply = response.choices[0].message.content.strip()
+            
+            # Add action links to the response
+            action_links = f"\n\n🚀 **Ready to get started?**\n\n🌐 **Visit our website:** {ACTION_LINKS['website']}\n📚 **Learn more:** {ACTION_LINKS['learn_more']}\n📞 **Contact us:** {ACTION_LINKS['contact']}\n🎯 **Try demo:** {ACTION_LINKS['demo']}"
+            
+            full_reply = ai_reply + action_links
+            
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
-            reply = "Sorry, there was an error processing your request."
-        await update.message.reply_text(reply)
+            full_reply = f"Sorry, there was an error processing your request.\n\n🌐 **Visit our website:** {ACTION_LINKS['website']}"
+            
+        await update.message.reply_text(full_reply, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Error in answer handler: {e}")
         try:
-            await update.message.reply_text("Sorry, something went wrong. Please try again later.")
+            await update.message.reply_text(f"Sorry, something went wrong. Please try again later.\n\n🌐 **Visit our website:** {ACTION_LINKS['website']}", parse_mode='Markdown')
         except:
             pass
 
@@ -228,17 +273,50 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📸 **To post images to your channel:**\n"
             "• Send me any photo\n"
             "• Add a caption if you want\n"
-            "• I'll post it to your channel\n\n"
+            "• I'll post it to your channel with action links\n\n"
             "💬 **To ask questions:**\n"
             "• Just type your question\n"
-            "• I'll answer using our website knowledge\n\n"
+            "• I'll answer using our website knowledge\n"
+            "• All responses include action links\n\n"
+            "🔗 **Action Links:**\n"
+            "• All posts automatically include website links\n"
+            "• Use /links to post action links only\n\n"
             "🔄 **Bot Status:** Always Online"
         )
     else:
         await update.message.reply_text(
             "👋 Welcome! I'm the SafeChain AI Bot.\n\n"
-            "💬 Ask me any questions about SafeChain AI and I'll help you!"
+            "💬 Ask me any questions about SafeChain AI and I'll help you!\n\n"
+            "🔗 All responses include helpful action links to our website."
         )
+
+async def links_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /links command to post action links to channel.
+    """
+    try:
+        # Check if message is from admin
+        user_id = update.effective_user.id
+        if str(user_id) != ADMIN_USER_ID:
+            await update.message.reply_text("Sorry, only the admin can post to the channel.")
+            return
+
+        # Create action links message
+        action_message = f"🚀 **SafeChain AI - Take Action Today!**\n\n{DEFAULT_ACTION_MESSAGE.format(**ACTION_LINKS)}"
+        
+        # Post to channel
+        await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=action_message,
+            parse_mode='Markdown'
+        )
+        
+        # Confirm to admin
+        await update.message.reply_text("✅ Action links posted to channel!")
+        
+    except Exception as e:
+        logger.error(f"Error posting action links to channel: {e}")
+        await update.message.reply_text("❌ Error posting action links to channel. Please try again.")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -308,6 +386,7 @@ async def run_channel_bot():
     # Add command handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("links", links_command))
     
     # Add message handlers
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
