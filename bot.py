@@ -124,16 +124,40 @@ def load_knowledge():
         logger.error(f"Error loading knowledge: {e}")
         return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
 
+async def clear_webhooks():
+    """
+    Clear any existing webhooks to prevent conflicts.
+    """
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
+        response = requests.get(url)
+        if response.status_code == 200:
+            logger.info("Successfully cleared existing webhooks")
+        else:
+            logger.warning(f"Failed to clear webhooks: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error clearing webhooks: {e}")
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle errors in the bot."""
     logger.error("Exception while handling an update:", exc_info=context.error)
     
     if isinstance(context.error, Conflict):
         logger.error("Bot conflict detected - another instance may be running")
+        # Try to clear webhooks and restart
+        try:
+            await clear_webhooks()
+            logger.info("Attempting to restart bot after conflict...")
+            # The bot will automatically retry due to the retry mechanism
+        except Exception as e:
+            logger.error(f"Error handling conflict: {e}")
     elif isinstance(context.error, NetworkError):
         logger.error("Network error occurred")
     elif isinstance(context.error, TimedOut):
         logger.error("Request timed out")
+    else:
+        logger.error(f"Unexpected error: {context.error}")
 
 async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -169,6 +193,67 @@ You are a helpful assistant. Answer the user's question using the knowledge prov
         except:
             pass
 
+async def run_bot_with_retry():
+    """
+    Run the bot with retry mechanism for handling conflicts during polling.
+    """
+    max_retries = 5
+    retry_delay = 30  # Start with 30 seconds
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to start bot (attempt {attempt + 1}/{max_retries})")
+            
+            # Clear any existing webhooks first
+            await clear_webhooks()
+            
+            app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+            
+            # Add error handler
+            app.add_error_handler(error_handler)
+            
+            # Add message handler
+            app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+            
+            logger.info("Bot is ready! Listening for messages...")
+            
+            # Try to start the bot
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+            
+            # If we get here, the bot started successfully
+            logger.info("Bot started successfully!")
+            
+            # Keep the bot running
+            try:
+                await asyncio.Event().wait()  # Wait indefinitely
+            except KeyboardInterrupt:
+                logger.info("Bot stopped by user")
+            finally:
+                await app.stop()
+                await app.shutdown()
+            
+            break  # If successful, break out of retry loop
+            
+        except Conflict as e:
+            logger.error(f"Bot conflict detected (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                logger.error("Max retries reached. Bot failed to start due to conflicts.")
+                raise
+        except Exception as e:
+            logger.error(f"Error starting bot: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                raise
+
 def main():
     """
     Start the Telegram bot and schedule scraping.
@@ -188,37 +273,13 @@ def main():
     # Start the bot with retry mechanism
     logger.info("Starting Telegram bot...")
     
-    max_retries = 5
-    retry_delay = 30  # Start with 30 seconds
-    
-    for attempt in range(max_retries):
-        try:
-            app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-            
-            # Add error handler
-            app.add_error_handler(error_handler)
-            
-            # Add message handler
-            app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
-            
-            logger.info("Bot is ready! Listening for messages...")
-            
-            # Try to start the bot
-            app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
-            break  # If successful, break out of retry loop
-            
-        except Conflict as e:
-            logger.error(f"Bot conflict detected (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                logger.info(f"Waiting {retry_delay} seconds before retry...")
-                time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
-            else:
-                logger.error("Max retries reached. Bot failed to start due to conflicts.")
-                raise
-        except Exception as e:
-            logger.error(f"Error starting bot: {e}")
-            raise
+    try:
+        asyncio.run(run_bot_with_retry())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        raise
 
 if __name__ == '__main__':
     main() 
