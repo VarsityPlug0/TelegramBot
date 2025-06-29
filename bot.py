@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.error import Conflict, NetworkError, TimedOut
-import openai
+from openai import OpenAI
 import logging
 import asyncio
 
@@ -24,7 +24,8 @@ WEBSITE_URL = 'https://safechain-7o0q.onrender.com/'
 KNOWLEDGE_FILE = 'knowledge.txt'
 SCRAPE_INTERVAL = 6 * 60 * 60  # 6 hours in seconds
 
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client with new API format
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 def scrape_website(url):
     """
@@ -201,7 +202,7 @@ You are a helpful assistant. Answer the user's question using the knowledge prov
 --- BEGIN KNOWLEDGE BASE ---\n{knowledge}\n--- END KNOWLEDGE BASE ---
 """
         try:
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -210,7 +211,7 @@ You are a helpful assistant. Answer the user's question using the knowledge prov
                 max_tokens=512,
                 temperature=0.2
             )
-            reply = response['choices'][0]['message']['content'].strip()
+            reply = response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             reply = "Sorry, there was an error processing your request."
