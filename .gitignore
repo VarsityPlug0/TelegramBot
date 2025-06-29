@@ -3,20 +3,39 @@
 .env.local
 .env.production
 
-# Knowledge base file (optional - can be regenerated)
-knowledge.txt
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 venv/
+env/
 ENV/
-env.bak/
-venv.bak/
+.venv/
+
+# Knowledge base file
+knowledge.txt
+
+# Logs
+*.log
 
 # IDE
 .vscode/
@@ -28,5 +47,6 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log 
+# Utility scripts (keep local)
+check_bot_status.py
+reset_bot.py 

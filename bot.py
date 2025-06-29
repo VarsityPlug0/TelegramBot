@@ -124,12 +124,41 @@ def load_knowledge():
         logger.error(f"Error loading knowledge: {e}")
         return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
 
+async def check_bot_conflicts():
+    """
+    Check if there are any conflicts with the bot before starting.
+    """
+    try:
+        base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+        
+        # 1. Delete webhook first
+        response = requests.get(f"{base_url}/deleteWebhook")
+        if response.status_code == 200:
+            logger.info("✅ Webhook cleared successfully")
+        else:
+            logger.warning(f"⚠️  Webhook clearing response: {response.status_code}")
+        
+        # 2. Check if there's a polling conflict
+        response = requests.get(f"{base_url}/getUpdates?limit=1")
+        if response.status_code == 200:
+            logger.info("✅ No conflicts detected - bot can start safely")
+            return True
+        elif response.status_code == 409:
+            logger.error("❌ CONFLICT DETECTED: Another bot instance is polling")
+            return False
+        else:
+            logger.warning(f"⚠️  Unexpected response: {response.status_code}")
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Error checking bot conflicts: {e}")
+        return False
+
 async def clear_webhooks():
     """
     Clear any existing webhooks to prevent conflicts.
     """
     try:
-        import requests
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
         response = requests.get(url)
         if response.status_code == 200:
@@ -197,15 +226,19 @@ async def run_bot_with_retry():
     """
     Run the bot with retry mechanism for handling conflicts during polling.
     """
-    max_retries = 5
-    retry_delay = 30  # Start with 30 seconds
+    max_retries = 10  # Increased retries
+    retry_delay = 60  # Start with 60 seconds
     
     for attempt in range(max_retries):
         try:
             logger.info(f"Attempting to start bot (attempt {attempt + 1}/{max_retries})")
             
-            # Clear any existing webhooks first
-            await clear_webhooks()
+            # Check for conflicts before starting
+            if not await check_bot_conflicts():
+                logger.warning("Conflicts detected, waiting before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 300)  # Cap at 5 minutes
+                continue
             
             app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
             
@@ -220,7 +253,15 @@ async def run_bot_with_retry():
             # Try to start the bot
             await app.initialize()
             await app.start()
-            await app.updater.start_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+            await app.updater.start_polling(
+                drop_pending_updates=True, 
+                allowed_updates=Update.ALL_TYPES,
+                timeout=30,
+                read_timeout=30,
+                write_timeout=30,
+                connect_timeout=30,
+                pool_timeout=30
+            )
             
             # If we get here, the bot started successfully
             logger.info("Bot started successfully!")
@@ -241,7 +282,7 @@ async def run_bot_with_retry():
             if attempt < max_retries - 1:
                 logger.info(f"Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+                retry_delay = min(retry_delay * 2, 300)  # Cap at 5 minutes
             else:
                 logger.error("Max retries reached. Bot failed to start due to conflicts.")
                 raise
@@ -250,7 +291,7 @@ async def run_bot_with_retry():
             if attempt < max_retries - 1:
                 logger.info(f"Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
-                retry_delay *= 2
+                retry_delay = min(retry_delay * 2, 300)
             else:
                 raise
 
