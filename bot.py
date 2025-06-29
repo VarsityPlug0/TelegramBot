@@ -36,11 +36,25 @@ def update_knowledge():
     Scrape the website and update the knowledge file.
     """
     try:
+        print(f"Scraping website: {WEBSITE_URL}")
         content = scrape_website(WEBSITE_URL)
-        with open(KNOWLEDGE_FILE, 'w', encoding='utf-8') as f:
-            f.write(content)
+        
+        if content and content.strip():
+            with open(KNOWLEDGE_FILE, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"Successfully updated knowledge base with {len(content)} characters")
+        else:
+            print("Warning: Scraped content is empty")
+            
     except Exception as e:
         print(f"Error updating knowledge: {e}")
+        # Create a minimal knowledge file if scraping fails
+        try:
+            with open(KNOWLEDGE_FILE, 'w', encoding='utf-8') as f:
+                f.write("SafeChain AI - AI-powered investment platform. Please visit our website for detailed information.")
+            print("Created fallback knowledge file")
+        except Exception as write_error:
+            print(f"Error creating fallback knowledge file: {write_error}")
 
 def schedule_scraping():
     """
@@ -57,10 +71,31 @@ def load_knowledge():
     """
     Load the knowledge base from the file.
     """
-    if not os.path.exists(KNOWLEDGE_FILE):
-        update_knowledge()
-    with open(KNOWLEDGE_FILE, 'r', encoding='utf-8') as f:
-        return f.read()
+    try:
+        if not os.path.exists(KNOWLEDGE_FILE):
+            print("Knowledge file not found, attempting to scrape website...")
+            update_knowledge()
+        
+        # Check if file was created successfully
+        if os.path.exists(KNOWLEDGE_FILE):
+            with open(KNOWLEDGE_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if content.strip():  # Check if file has content
+                    return content
+                else:
+                    print("Knowledge file is empty, attempting to scrape again...")
+                    update_knowledge()
+                    if os.path.exists(KNOWLEDGE_FILE):
+                        with open(KNOWLEDGE_FILE, 'r', encoding='utf-8') as f:
+                            return f.read()
+        
+        # If we still don't have content, return a default message
+        print("Could not load knowledge base, using default response")
+        return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
+        
+    except Exception as e:
+        print(f"Error loading knowledge: {e}")
+        return "SafeChain AI - AI-powered investment platform. Please visit our website for detailed information."
 
 async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -92,9 +127,23 @@ def main():
     """
     Start the Telegram bot and schedule scraping.
     """
+    print("Starting SafeChain AI Telegram Bot...")
+    print(f"Website URL: {WEBSITE_URL}")
+    print(f"Knowledge file: {KNOWLEDGE_FILE}")
+    
+    # Initialize knowledge base
+    print("Initializing knowledge base...")
+    load_knowledge()
+    
+    # Start background scraping
+    print("Starting background scraping scheduler...")
     schedule_scraping()
+    
+    # Start the bot
+    print("Starting Telegram bot...")
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+    print("Bot is ready! Listening for messages...")
     app.run_polling()
 
 if __name__ == '__main__':
