@@ -272,10 +272,12 @@ def main():
     logger.info(f"OPENAI_API_KEY length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 'NOT SET'}")
     logger.info(f"Knowledge file: {KNOWLEDGE_FILE}")
     
-    # Initialize the bot
-    asyncio.run(initialize_bot())
-    
-    # Start Flask app
+    # Start bot initialization in a background thread so Flask starts immediately
+    from threading import Thread
+    def background_init():
+        import asyncio
+        asyncio.run(initialize_bot())
+    Thread(target=background_init, daemon=True).start()
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
