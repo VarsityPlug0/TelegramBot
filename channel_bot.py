@@ -9,6 +9,16 @@ from telegram.error import Conflict, NetworkError, TimedOut, TelegramError
 from openai import OpenAI
 import logging
 import asyncio
+from flask import Flask
+
+health_app = Flask(__name__)
+
+@health_app.route("/healthz")
+def healthz():
+    return "ok", 200
+
+def run_health_server():
+    health_app.run(host="0.0.0.0", port=8080)
 
 # Set up logging
 logging.basicConfig(
@@ -379,20 +389,20 @@ async def run_channel_bot():
     
     # Build application
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    
+    logger.info("Telegram Application built.")
     # Add error handler
     app.add_error_handler(error_handler)
-    
+    logger.info("Error handler added.")
     # Add command handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("links", links_command))
-    
+    logger.info("Command handlers added.")
     # Add message handlers
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
-    
+    logger.info("Message handlers added.")
     logger.info("Bot is ready! Starting polling...")
     
     # Start the bot with enhanced polling
@@ -432,6 +442,8 @@ def main():
     logger.info(f"Website URL: {WEBSITE_URL}")
     logger.info(f"Channel ID: {CHANNEL_ID}")
     logger.info(f"Admin User ID: {ADMIN_USER_ID}")
+    logger.info(f"TELEGRAM_TOKEN length: {len(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else 'NOT SET'}")
+    logger.info(f"OPENAI_API_KEY length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 'NOT SET'}")
     
     try:
         asyncio.run(run_channel_bot())
@@ -442,4 +454,6 @@ def main():
         raise
 
 if __name__ == '__main__':
+    # Start health check server in background
+    threading.Thread(target=run_health_server, daemon=True).start()
     main() 
