@@ -206,9 +206,7 @@ telegram_app = None
 
 @app.route('/webhook', methods=['POST'])
 async def webhook_handler():
-    """
-    Handle incoming webhook requests from Telegram.
-    """
+    logger.info("Received POST /webhook")
     try:
         if telegram_app is None:
             return jsonify({'error': 'Bot not initialized'}), 500
