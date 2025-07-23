@@ -186,11 +186,12 @@ async def setup_webhook():
         
         # Build the application
         application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-        
+        logger.info("Telegram Application built.")
         # Add handlers
         application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), answer))
+        logger.info("Message handler added.")
         application.add_error_handler(error_handler)
-        
+        logger.info("Error handler added.")
         # Set webhook
         await application.bot.set_webhook(url=f"{webhook_url}")
         logger.info(f"Webhook set to: {webhook_url}")
@@ -269,6 +270,8 @@ def main():
     """
     logger.info("Starting SafeChain AI Telegram Bot (Webhook Mode)...")
     logger.info(f"Website URL: {WEBSITE_URL}")
+    logger.info(f"TELEGRAM_TOKEN length: {len(TELEGRAM_TOKEN) if TELEGRAM_TOKEN else 'NOT SET'}")
+    logger.info(f"OPENAI_API_KEY length: {len(OPENAI_API_KEY) if OPENAI_API_KEY else 'NOT SET'}")
     logger.info(f"Knowledge file: {KNOWLEDGE_FILE}")
     
     # Initialize the bot
